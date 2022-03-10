@@ -1,0 +1,50 @@
+version: "3.7"
+
+services:
+  traefik:
+    image: "traefik:v2.5"
+    container_name: "traefik"
+    networks:
+      - traefik-public
+      - common
+    command:
+      - "--log.level=DEBUG"
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--providers.docker.swarmMode=true"
+      - "--entrypoints.websecure.address=:443"
+      - "--certificatesresolvers.myresolver.acme.tlschallenge=true"
+      - "--certificatesresolvers.myresolver.acme.email=admin@your.domain"
+      - "--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json"
+    volumes:
+      - "./letsencrypt:/letsencrypt"
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+    ports:
+      - "443:443"
+      - "8080:8080"
+  app:
+    image: containous/whoami
+    networks:
+      - common
+    deploy:
+      replicas: 1
+      restart_policy:
+        delay: 5s
+        window: 120s
+      update_config:
+        delay: 10s
+        failure_action: rollback
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.cabinet.rule=Host(`whoami.your.domain`)"
+        - "traefik.http.routers.cabinet.entrypoints=websecure"
+        - "traefik.http.routers.cabinet.tls.certresolver=myresolver"
+        - "traefik.http.services.cabinet.loadbalancer.server.port=80"
+
+networks:
+  common:
+  traefik-public:
+    external: true
+
+
